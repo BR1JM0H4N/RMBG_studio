@@ -16,8 +16,8 @@
     
     :root {
       
-      /* --safe-area-inset-top: 40px;
-      --safe-area-inset-bottom: 34px;
+      /* --safe-area-inset-top: 0px;
+      --safe-area-inset-bottom: 0px;
       /* test codes */
       --primary: var(--md-primary, #ACD299);
       --onPrimary: var(--md-onPrimary, #173807);
@@ -54,7 +54,6 @@
     html {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
-      
       -webkit-font-smoothing: antialiased;
       scroll-behavior: smooth;
       -webkit-user-select: none;
@@ -772,7 +771,7 @@
       background: var(--surfaceContainer);
       display: flex;
       align-items: center;
-      padding: 10px 16px calc(var(--safe-area-inset-bottom, 10px)) 12px;
+      padding: 15px 16px calc(var(--safe-area-inset-bottom, 0px) + 15px) 12px;
       gap: 8px;
     }
     
@@ -1324,7 +1323,7 @@
     .about {
       margin: 24px auto 0;
       max-width: 640px;
-      padding: 0 0 calc(32px + var(--safe-area-inset-bottom, 0px));
+      padding: 0 0 32px 0;
       text-align: center
     }
     
@@ -1664,15 +1663,21 @@
           <div class="sub-title" id="pick-title">
             Color
           </div>
-          <div class="sv" id="sv">
-            <i id="sv-thumb"></i>
+          <div id="palette" class="hide" style="flex-direction:column;gap:6px">
+            <div class="sv" id="sv">
+              <i id="sv-thumb"></i>
+            </div>
+            <input type="range" class="rng hue" id="hue" min="0" max="360" step="1" value="0" aria-label="Hue">
           </div>
-          <input type="range" class="rng hue" id="hue" min="0" max="360" step="1" value="0" aria-label="Hue">
           <div class="row">
             <div class="hex-field">
               <span class="sw" id="hex-sw"></span><span style="opacity:.6">#</span><input id="hex" maxlength="7" autocomplete="off" spellcheck="false"
                                                                                                                                       inputmode="text">
             </div>
+            <button class="icon-btn state" id="palette-btn" aria-label="Show color palette" aria-expanded="false" aria-controls="palette"
+                    style="background:var(--primaryContainer);border-radius:16px">
+              <span style="display:block;width:24px;height:24px;border-radius:50%;background:conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);box-shadow:0 0 0 1px rgba(0,0,0,.25)"></span>
+            </button>
             <button class="icon-btn state" id="eyedrop" aria-label="Pick color from image"
                                                                                                                                     style="background:var(--primaryContainer);color:var(--onPrimaryContainer);border-radius:16px">
               <svg class="i" viewBox="0 -960 960 960">
@@ -2248,6 +2253,34 @@
       pk.v = 1 - clamp((e.clientY - r.top) / r.height, 0, 1);
       pickerChanged();
     }
+    const palEl = $('palette'), palBtn = $('palette-btn');
+    let palTimer = 0;
+    function setPalette(open) {
+      clearTimeout(palTimer); palTimer = 0;
+      palEl.classList.toggle('hide', !open);
+      palEl.style.display = open ? 'flex' : '';
+      palBtn.setAttribute('aria-expanded', open);
+    }
+    palBtn.addEventListener('click', () => {
+      setPalette(palEl.classList.contains('hide'));
+    });
+    // when user moves to another element, hide after 3s; coming back cancels
+    document.addEventListener('pointerdown', (e) => {
+      if (palEl.classList.contains('hide')) return;
+      if (palEl.contains(e.target) || palBtn.contains(e.target)) {
+        clearTimeout(palTimer); palTimer = 0;
+      } else if (!palTimer) {
+        palTimer = setTimeout(() => setPalette(false), 3000);
+      }
+    }, true);
+    document.addEventListener('focusin', (e) => {
+      if (palEl.classList.contains('hide')) return;
+      if (palEl.contains(e.target) || palBtn.contains(e.target)) {
+        clearTimeout(palTimer); palTimer = 0;
+      } else if (!palTimer) {
+        palTimer = setTimeout(() => setPalette(false), 3000);
+      }
+    });
     svEl.addEventListener('pointerdown', (e) => {
       svEl.setPointerCapture(e.pointerId); svMove(e);
     });
