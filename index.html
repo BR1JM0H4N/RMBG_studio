@@ -1,0 +1,2717 @@
+<!DOCTYPE html>
+<html lang="en">
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>
+  eruda.init();
+</script>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#11140F">
+  <title>Bulk AI Background Remover</title>
+  <script src="./ort.webgpu.min.js"></script>
+  <script src="./jszip.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600;8..144,700&display=swap');
+    
+    :root {
+      
+      /* --safe-area-inset-top: 40px;
+      --safe-area-inset-bottom: 34px;
+      /* test codes */
+      --primary: var(--md-primary, #ACD299);
+      --onPrimary: var(--md-onPrimary, #173807);
+      --primaryContainer: var(--md-primaryContainer, #2F4F22);
+      --onPrimaryContainer: var(--md-onPrimaryContainer, #C7EEB3);
+      --secondary: var(--md-secondary, #BCCBB1);
+      --onSecondary: var(--md-onSecondary, #283421);
+      --secondaryContainer: var(--md-secondaryContainer, #3E4B37);
+      --onSecondaryContainer: var(--md-onSecondaryContainer, #D8E7CC);
+      --tertiary: var(--md-tertiary, #CFCB7E);
+      --onTertiary: var(--md-onTertiary, #333100);
+      --tertiaryContainer: var(--md-tertiaryContainer, #4B4811);
+      --onTertiaryContainer: var(--md-onTertiaryContainer, #F9F4AE);
+      --error: var(--md-error, #F2B8B5);
+      --onError: var(--md-onError, #601410);
+      --errorContainer: var(--md-errorContainer, #8C1D18);
+      --onErrorContainer: var(--md-onErrorContainer, #F9DEDC);
+      --surface: var(--md-surface, #11140F);
+      --onSurface: var(--md-onSurface, #E2E3DA);
+      --surfaceVariant: var(--md-surfaceVariant, #424940);
+      --onSurfaceVariant: var(--md-onSurfaceVariant, #C2C8BC);
+      --surfaceContainerLowest: var(--md-surfaceContainerLowest, #0C0F0A);
+      --surfaceContainerLow: var(--md-surfaceContainerLow, #191D16);
+      --surfaceContainer: var(--md-surfaceContainer, #1D211A);
+      --surfaceContainerHigh: var(--md-surfaceContainerHigh, #272B24);
+      --surfaceContainerHighest: var(--md-surfaceContainerHighest, #32362E);
+      --surfaceDim: var(--md-surfaceDim, #11140F);
+      --surfaceBright: var(--md-surfaceBright, #373B33);
+      --outline: var(--md-outline, #8C9387);
+      --outlineVariant: var(--md-outlineVariant, #424940);
+      color-scheme: dark;
+    }
+    
+    html {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      
+      -webkit-font-smoothing: antialiased;
+      scroll-behavior: smooth;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    * {
+      box-sizing: inherit;
+      -webkit-tap-highlight-color: transparent
+    }
+    
+    input[type="range"] {
+      pointer-events: none
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      pointer-events: auto
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+      pointer-events: auto
+    }
+    
+    /* ═════════ Shape & motion tokens ═════════ */
+    :root {
+      --shape-xs: 8px;
+      --shape-sm: 12px;
+      --shape-md: 16px;
+      --shape-lg: 20px;
+      --shape-xl: 28px;
+      --ease-emph: cubic-bezier(.2, 0, 0, 1);
+      --ease-emph-dec: cubic-bezier(.05, .7, .1, 1);
+      --bar-h: 80px;
+      --font: 'Roboto Flex', 'Google Sans', Roboto, system-ui, sans-serif;
+      --checker: repeating-conic-gradient(var(--surfaceContainerHighest) 0% 25%, var(--surfaceContainerLow) 0% 50%) 0 0 / 16px 16px;
+    }
+    
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--surface);
+    }
+    
+    body {
+      font-family: var(--font);
+      color: var(--onSurface);
+      font-size: 14px;
+      line-height: 1.43;
+      letter-spacing: .25px;
+      padding-bottom: calc(var(--bar-h) + 24px);
+    }
+    
+    button {
+      font: inherit;
+      color: inherit;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    
+    input {
+      font: inherit;
+      color: inherit;
+    }
+    
+    svg.i {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+      flex: none;
+    }
+    
+    /* ═════════ State layer + ripple ═════════ */
+    .state {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    
+    .state::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity .15s linear;
+      z-index: -1;
+      pointer-events: none;
+    }
+    
+    .state:hover::before {
+      opacity: .08;
+    }
+    
+    .state:active::before {
+      opacity: .12;
+    }
+    
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .16;
+      transform: scale(0);
+      animation: rip .55s var(--ease-emph-dec) forwards;
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    @keyframes rip {
+      to {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+    
+    /* ═════════ Top app bar ═════════ */
+    .app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: auto;
+      padding: var(--safe-area-inset-top, 10px) 4px 10px 16px;
+      background: var(--surface);
+      transition: background .25s var(--ease-emph);
+    }
+    
+    .app-bar.scrolled {
+      background: var(--surfaceContainer);
+    }
+    
+    .app-bar .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      margin-right: 12px;
+      background: var(--primaryContainer);
+      color: var(--onPrimaryContainer);
+      display: grid;
+      place-items: center;
+    }
+    
+    .app-bar .titles {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .app-bar h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 28px;
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+    
+    .app-bar .sub {
+      font-size: 12px;
+      color: var(--onSurfaceVariant);
+      letter-spacing: .5px;
+    }
+    
+    .icon-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--onSurfaceVariant);
+      flex: none;
+    }
+    
+    .icon-btn:disabled {
+      opacity: .38;
+      pointer-events: none;
+    }
+    
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 8px 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    /* ═════════ Status card ═════════ */
+    .status-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: var(--shape-lg);
+      background: var(--surfaceContainerHigh);
+      transition: background .3s;
+    }
+    
+    .status-card .lead {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+      transition: all .3s;
+      flex: none;
+    }
+    
+    .status-card .txt {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .status-card .t1 {
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: .15px;
+    }
+    
+    .status-card .t2 {
+      font-size: 12px;
+      color: var(--onSurfaceVariant);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .status-card.ready .lead {
+      background: var(--primaryContainer);
+      color: var(--onPrimaryContainer);
+    }
+    
+    .status-card.error {
+      background: var(--errorContainer);
+      color: var(--onErrorContainer);
+    }
+    
+    .status-card.error .lead {
+      background: var(--error);
+      color: var(--onError);
+    }
+    
+    .status-card.error .t2 {
+      color: var(--onErrorContainer);
+      opacity: .85;
+      white-space: normal;
+    }
+    
+    .status-card.busy .lead svg {
+      animation: spin 1.1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .progress {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surfaceVariant);
+      overflow: hidden;
+      position: relative;
+      margin-top: 10px;
+      display: none;
+    }
+    
+    .progress.on {
+      display: block;
+    }
+    
+    .progress>i {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      background: var(--primary);
+      border-radius: 2px;
+      transition: width .4s var(--ease-emph);
+    }
+    
+    .progress.indet>i {
+      width: 35%;
+      animation: indet 1.4s var(--ease-emph) infinite;
+    }
+    
+    @keyframes indet {
+      0% {
+        left: -35%;
+      }
+      
+      100% {
+        left: 100%;
+      }
+    }
+    
+    /* ═════════ Settings card ═════════ */
+    .card {
+      border-radius: var(--shape-xl);
+      background: var(--surfaceContainer);
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    
+    .card-title {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .5px;
+      color: var(--primary);
+      text-transform: uppercase;
+      padding: 0 4px;
+    }
+    
+    .card-hint {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 0 4px;
+      color: var(--onSurfaceVariant);
+      font-size: 12px;
+    }
+    
+    .card-hint svg {
+      width: 20px;
+      height: 20px;
+      color: var(--tertiary);
+    }
+    
+    /* Segmented button */
+    #process-mode {
+      display: none;
+    }
+    
+    .seg {
+      display: flex;
+      border: 1px solid var(--outline);
+      border-radius: 100px;
+      overflow: hidden;
+      height: 40px;
+      flex: none;
+    }
+    
+    .seg button {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .1px;
+      color: var(--onSurface);
+      transition: background .2s, color .2s;
+    }
+    
+    .seg button+button {
+      border-left: 1px solid var(--outline);
+    }
+    
+    .seg button .chk {
+      width: 0;
+      overflow: hidden;
+      transition: width .25s var(--ease-emph);
+      display: flex;
+    }
+    
+    .seg button .chk svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .seg button[aria-checked="true"] {
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+    }
+    
+    .seg button[aria-checked="true"] .chk {
+      width: 18px;
+      margin-right: 2px;
+    }
+    
+    /* ═════════ Shared M3 slider ═════════ */
+    .rng {
+      --p: 50;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 44px;
+      margin: 0;
+      background: transparent;
+      outline: none;
+      display: block;
+    }
+    
+    .rng::-webkit-slider-runnable-track {
+      height: 16px;
+      border-radius: 8px;
+      background: linear-gradient(to right,
+          var(--primary) calc((100% - 32px) * var(--p) / 100 + 10px),
+          transparent calc((100% - 32px) * var(--p) / 100 + 10px),
+          transparent calc((100% - 32px) * var(--p) / 100 + 22px),
+          var(--secondaryContainer) calc((100% - 32px) * var(--p) / 100 + 22px));
+    }
+    
+    .rng::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 32px;
+      height: 44px;
+      margin-top: -14px;
+      border: 0;
+      background: linear-gradient(var(--primary), var(--primary)) center / 4px 44px no-repeat;
+      border-radius: 2px;
+    }
+    
+    .rng:active::-webkit-slider-thumb {
+      background-size: 2px 44px;
+    }
+    
+    .rng::-moz-range-track {
+      height: 16px;
+      border-radius: 8px;
+      background: var(--secondaryContainer);
+    }
+    
+    .rng::-moz-range-progress {
+      height: 16px;
+      border-radius: 8px 0 0 8px;
+      background: var(--primary);
+    }
+    
+    .rng::-moz-range-thumb {
+      width: 32px;
+      height: 44px;
+      border: 0;
+      border-radius: 2px;
+      background: linear-gradient(var(--primary), var(--primary)) center / 4px 44px no-repeat;
+    }
+    
+    /* hue variant */
+    .rng.hue::-webkit-slider-runnable-track {
+      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+      height: 16px;
+    }
+    
+    .rng.hue::-webkit-slider-thumb {
+      width: 28px;
+      height: 28px;
+      margin-top: -6px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 3px var(--surfaceContainer), 0 1px 4px rgba(0, 0, 0, .6);
+    }
+    
+    .rng.hue::-moz-range-track {
+      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    }
+    
+    .rng.hue::-moz-range-progress {
+      background: transparent;
+    }
+    
+    .rng.hue::-moz-range-thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 3px var(--surfaceContainer), 0 1px 4px rgba(0, 0, 0, .6);
+    }
+    
+    .slider-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .slider-head label {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .1px;
+    }
+    
+    .val {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 100px;
+      background: var(--primaryContainer);
+      color: var(--onPrimaryContainer);
+      font-variant-numeric: tabular-nums;
+      min-width: 56px;
+      text-align: center;
+    }
+    
+    .slider-hint {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--onSurfaceVariant);
+      margin-top: 2px;
+    }
+    
+    /* ═════════ Empty state ═════════ */
+    .drop {
+      border-radius: var(--shape-xl);
+      border: 2px dashed var(--outlineVariant);
+      padding: 36px 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: var(--onSurfaceVariant);
+      transition: all .25s var(--ease-emph);
+    }
+    
+    .drop .art {
+      width: 88px;
+      height: 88px;
+      display: grid;
+      place-items: center;
+      color: var(--onTertiaryContainer);
+      background: var(--tertiaryContainer);
+      border-radius: 34% 66% 58% 42% / 46% 40% 60% 54%;
+      animation: morph 9s ease-in-out infinite;
+    }
+    
+    .drop .art svg {
+      width: 40px;
+      height: 40px;
+    }
+    
+    @keyframes morph {
+      50% {
+        border-radius: 58% 42% 36% 64% / 56% 62% 38% 44%;
+        transform: rotate(8deg);
+      }
+    }
+    
+    .drop h2 {
+      margin: 6px 0 0;
+      font-size: 22px;
+      line-height: 28px;
+      font-weight: 400;
+      color: var(--onSurface);
+      letter-spacing: 0;
+    }
+    
+    .drop p {
+      margin: 0;
+      max-width: 280px;
+    }
+    
+    .drop.over {
+      border-color: var(--primary);
+      background: color-mix(in srgb, var(--primary) 10%, transparent);
+      transform: scale(1.01);
+    }
+    
+    .drop.hidden {
+      display: none;
+    }
+    
+    /* ═════════ Gallery ═════════ */
+    .section-head {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 4px 0;
+    }
+    
+    .section-head.on {
+      display: flex;
+    }
+    
+    .section-head h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: .15px;
+    }
+    
+    .count-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 100px;
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+      margin-left: 8px;
+    }
+    
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    
+    @media (min-width: 560px) {
+      #gallery {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    
+    .result-item {
+      position: relative;
+      border-radius: var(--shape-lg);
+      overflow: hidden;
+      cursor: pointer;
+      background: var(--surfaceContainerHigh);
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      animation: pop .4s var(--ease-emph-dec) both;
+    }
+    
+    @keyframes pop {
+      from {
+        opacity: 0;
+        transform: scale(.92);
+      }
+    }
+    
+    .result-item canvas {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      display: block;
+    }
+    
+    .result-item .thumb-wrap {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      background: var(--checker);
+    }
+    
+    .time-badge {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      padding: 3px 9px;
+      border-radius: 100px;
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+      color: var(--onSurface);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    
+    .mini-fab {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+      color: var(--onSurface);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    
+    .mini-fab svg {
+      width: 20px;
+      height: 20px;
+    }
+    
+    .skeleton {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+      background: linear-gradient(110deg, var(--surfaceContainerHigh) 30%, var(--surfaceContainerHighest) 50%, var(--surfaceContainerHigh) 70%) 0 0 / 250% 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+    
+    @keyframes shimmer {
+      to {
+        background-position: -150% 0;
+      }
+    }
+    
+    .skeleton .cpi {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 4px solid var(--primaryContainer);
+      border-top-color: var(--primary);
+      animation: spin .9s linear infinite;
+    }
+    
+    /* ═════════ Bottom app bar ═════════ */
+    .bottom-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 25;
+      height: auto;
+      background: var(--surfaceContainer);
+      display: flex;
+      align-items: center;
+      padding: 10px 16px calc(var(--safe-area-inset-bottom, 0px)) 12px;
+      gap: 8px;
+    }
+    
+    .bottom-bar .spacer {
+      flex: 1;
+    }
+    
+    .fab-ext {
+      height: 56px;
+      padding: 0 20px 0 16px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--primaryContainer);
+      color: var(--onPrimaryContainer);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .1px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 4px 8px 3px rgba(0, 0, 0, .2);
+      transition: transform .2s var(--ease-emph);
+    }
+    
+    .fab-ext:active {
+      transform: scale(.96);
+    }
+    
+    .fab-ext:disabled {
+      background: color-mix(in srgb, var(--onSurface) 12%, transparent);
+      color: color-mix(in srgb, var(--onSurface) 38%, transparent);
+      box-shadow: none;
+      pointer-events: none;
+    }
+    
+    .tonal-btn {
+      height: 56px;
+      padding: 0 20px;
+      border-radius: 100px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+      font-weight: 500;
+      font-size: 14px;
+    }
+    
+    .tonal-btn.on {
+      display: flex;
+    }
+    
+    .snackbar {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: calc(var(--bar-h) + 16px + var(--safe-area-inset-bottom, 0px));
+      z-index: 60;
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 48px;
+      padding: 12px 16px;
+      border-radius: var(--shape-xs);
+      background: var(--onSurface);
+      color: var(--surface);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      transform: translateY(24px);
+      opacity: 0;
+      pointer-events: none;
+      transition: all .3s var(--ease-emph);
+    }
+    
+    .snackbar.on {
+      transform: none;
+      opacity: 1;
+    }
+    
+    /* ═════════ Editor dialog ═════════ */
+    .dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      padding-top: var(--safe-area-inset-top, 0px);
+      padding-bottom: var(--safe-area-inset-bottom, 0px);
+      transform: translateY(100%);
+      visibility: hidden;
+      transition: transform .4s var(--ease-emph), visibility 0s .4s;
+    }
+    
+    .dialog.on {
+      transform: none;
+      visibility: visible;
+      transition: transform .4s var(--ease-emph);
+    }
+    
+    .dialog-bar {
+      display: flex;
+      align-items: center;
+      height: 64px;
+      padding: 0 8px 0 4px;
+      gap: 4px;
+      flex: none;
+    }
+    
+    .dialog-bar h2 {
+      flex: 1;
+      margin: 0;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .save-btn {
+      height: 40px;
+      padding: 0 18px 0 14px;
+      border-radius: 100px;
+      background: var(--primary);
+      color: var(--onPrimary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: .1px;
+      flex: none;
+    }
+    
+    .save-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+    
+    .stage-wrap {
+      flex: 1 1 0;
+      min-height: 120px;
+      margin: 0 16px 12px;
+      position: relative;
+    }
+    
+    .stage {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--shape-xl);
+      overflow: hidden;
+      display: grid;
+      grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+      place-items: center;
+      padding: 10px;
+      background: var(--checker);
+      background-size: 20px 20px;
+      touch-action: auto;
+    }
+    
+    .stage canvas {
+      min-width: 0;
+      min-height: 0;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      display: block;
+      border-radius: 6px;
+    }
+    
+    .stage.eyedrop {
+      touch-action: none;
+      cursor: crosshair;
+      outline: 3px solid var(--primary);
+      outline-offset: -3px;
+    }
+    
+    .eyedrop-banner {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translate(-50%, -8px);
+      opacity: 0;
+      pointer-events: none;
+      background: var(--primaryContainer);
+      color: var(--onPrimaryContainer);
+      padding: 8px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+      transition: all .25s var(--ease-emph);
+      z-index: 3;
+    }
+    
+    .eyedrop-banner svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .stage.eyedrop~.eyedrop-banner {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    
+    .loupe {
+      position: fixed;
+      z-index: 70;
+      width: 96px;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transform: translate(-50%, -135%);
+    }
+    
+    .loupe.on {
+      display: flex;
+    }
+    
+    .loupe canvas {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: 4px solid var(--onSurface);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .6);
+      background: #000;
+      image-rendering: pixelated;
+    }
+    
+    .loupe span {
+      background: var(--surfaceContainerHighest);
+      color: var(--onSurface);
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* Bottom sheet */
+    .sheet {
+      flex: 0 1 auto;
+      min-height: 0;
+      max-height: 52%;
+      overflow: hidden;
+      background: var(--surfaceContainer);
+      border-radius: 28px 28px 0 0;
+      padding: 8px 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, .35);
+    }
+    
+    .sheet .grab {
+      width: 32px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--outline);
+      opacity: .5;
+      margin: 0 auto;
+    }
+    
+    .panel {
+      display: none;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 2px 2px 6px;
+      flex-direction: column;
+      gap: 14px;
+      scrollbar-width: none;
+    }
+    
+    .panel::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .panel.on {
+      display: flex;
+    }
+    
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .row.wrap {
+      flex-wrap: wrap;
+    }
+    
+    .btn-text {
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 100px;
+      color: var(--primary);
+      font-weight: 500;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: .1px;
+      flex: none;
+    }
+    
+    .btn-tonal {
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+    }
+    
+    .btn-outlined {
+      border: 1px solid var(--outline);
+      color: var(--onSurface);
+    }
+    
+    .btn-text svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .sub-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--onSurfaceVariant);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    
+    .hide {
+      display: none !important;
+    }
+    
+    /* Color picker */
+    .sv {
+      position: relative;
+      height: 150px;
+      border-radius: 16px;
+      touch-action: none;
+      overflow: hidden;
+      cursor: crosshair;
+      background: #f00;
+      flex: none;
+    }
+    
+    .sv::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+    }
+    
+    .sv::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, #000, rgba(0, 0, 0, 0));
+    }
+    
+    .sv i {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .5);
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      pointer-events: none;
+    }
+    
+    .hex-field {
+      flex: 1;
+      min-width: 0;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      background: transparent;
+    }
+    
+    .hex-field:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    
+    .hex-field .sw {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--outline);
+      flex: none;
+    }
+    
+    .hex-field input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    
+    .swatches {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 4px 2px;
+      scrollbar-width: none;
+    }
+    
+    .swatches::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .swatch {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--outline);
+      flex: none;
+    }
+    
+    .swatch.rect {
+      width: 56px;
+      border-radius: 12px;
+    }
+    
+    .swatch[aria-checked="true"] {
+      box-shadow: 0 0 0 2px var(--surfaceContainer), 0 0 0 4px var(--primary);
+    }
+    
+    /* Gradient maker */
+    .gbar-wrap {
+      padding: 12px 14px 4px;
+    }
+    
+    .gbar {
+      position: relative;
+      height: 32px;
+      border-radius: 16px;
+      border: 1px solid var(--outline);
+      background-clip: padding-box;
+      touch-action: none;
+    }
+    
+    .gbar::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: var(--checker);
+      background-size: 12px 12px;
+      z-index: -1;
+    }
+    
+    .gstop {
+      position: absolute;
+      top: 50%;
+      width: 30px;
+      height: 30px;
+      margin: -15px 0 0 -15px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .5);
+      touch-action: none;
+      cursor: grab;
+    }
+    
+    .gstop[aria-checked="true"] {
+      box-shadow: 0 0 0 2px #000, 0 0 0 5px var(--primary);
+      z-index: 2;
+    }
+    
+    #bg-mode {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--surfaceContainer);
+      box-shadow: 0 0 0 4px var(--surfaceContainer), 0 8px 8px -2px var(--surfaceContainer);
+    }
+    
+    #tabs button {
+      font-size: 13px;
+      padding: 0 4px;
+      gap: 0;
+    }
+    
+    .stage.xform {
+      touch-action: none;
+      cursor: grab;
+    }
+    
+    .xform-banner {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translate(-50%, -8px);
+      opacity: 0;
+      pointer-events: none;
+      background: var(--secondaryContainer);
+      color: var(--onSecondaryContainer);
+      padding: 8px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+      transition: all .25s var(--ease-emph);
+      z-index: 3;
+    }
+    
+    .xform-banner svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .stage.xform~.xform-banner {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      animation: fadeout .4s 3.5s forwards;
+    }
+    
+    @keyframes fadeout {
+      to {
+        opacity: 0;
+      }
+    }
+    
+    /* Dialog stays outside body padding */
+    
+    
+    /* about */
+    .about {
+      margin: 24px auto 0;
+      max-width: 640px;
+      padding: 0 0 calc(32px + var(--safe-area-inset-bottom, 0px));
+      text-align: center
+    }
+    
+    .about .card {
+      background: var(--tertiaryContainer);
+      color: var(--onTertiaryContainer);
+      border-radius: 32px;
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .about p {
+      margin: 0;
+      font-size: 15px
+    }
+    
+    .about p b {
+      font-weight: 700
+    }
+    
+    .about .heart {
+      display: inline-block;
+      color: var(--error);
+      animation: beat 1s ease-in-out infinite
+    }
+    
+    @keyframes beat {
+      
+      0%,
+      60%,
+      100% {
+        transform: scale(1)
+      }
+      
+      30% {
+        transform: scale(1.35)
+      }
+    }
+    
+    .about a.btn {
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 24px;
+      border-radius: 999px;
+      background: var(--tertiary);
+      color: var(--onTertiary);
+      text-decoration: none;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+    }
+    
+    .about a.btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity .15s
+    }
+    
+    .about a.btn:hover::after {
+      opacity: .1
+    }
+    
+    .about a.btn:active::after {
+      opacity: .16
+    }
+    
+    .about svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor
+    }
+  </style>
+</head>
+
+<body>
+  
+  <!-- Top app bar -->
+  <header class="app-bar" id="appbar">
+    <div class="logo">
+      <svg class="i" viewBox="0 0 24 24"
+                                                                                                                              style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+        <rect x="3" y="3" width="18" height="18" rx="4" stroke-dasharray="2.6 3" />
+        <circle cx="12" cy="9.8" r="2.7" style="fill:currentColor;stroke:none" />
+        <path d="M6.8 18.2c.4-2.6 2.5-4.2 5.2-4.2s4.8 1.6 5.2 4.2z" style="fill:currentColor;stroke:none" />
+      </svg>
+    </div>
+    <div class="titles">
+      <h1>RMBG</h1>
+      <div class="sub">
+        Bulk background remover
+      </div>
+    </div>
+    <button class="icon-btn state" id="clear-btn" aria-label="Clear all" disabled>
+      <svg class="i" viewBox="0 -960 960 960">
+        <path
+                                                                                                                                d="M280-120q-33 0-56.500-23.500T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.500 56.500T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z" />
+      </svg>
+    </button>
+  </header>
+  
+  <main>
+    <section class="status-card busy" id="status-card">
+      <div class="lead" id="status-icon"></div>
+      <div class="txt">
+        <div class="t1" id="status">
+          Initializing WebGPU Model...
+        </div>
+        <div class="t2" id="status-sub">
+          RMBG-1.4 · running on-device
+        </div>
+        <div class="progress indet on" id="progress">
+          <i></i>
+        </div>
+      </div>
+    </section>
+    
+    <section class="card">
+      <div class="card-title">
+        Settings
+      </div>
+      <select id="process-mode">
+        <option value="standard">Standard Mode (Smoother)</option>
+        <option value="boosted">High Contrast Mode (Previous)</option>
+      </select>
+      <div class="seg" role="radiogroup" aria-label="Processing mode" id="seg">
+        <button class="state" role="radio" aria-checked="true" data-v="standard"><span class="chk"><svg class="i"
+                                                                                                                                    viewBox="0 -960 960 960">
+              <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+            </svg></span>Smoother</button>
+        <button class="state" role="radio" aria-checked="false" data-v="boosted"><span class="chk"><svg class="i"
+                                                                                                                                    viewBox="0 -960 960 960">
+              <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+            </svg></span>High contrast</button>
+      </div>
+      <div class="card-hint">
+        <svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="M480-80q-83 0-156-31.500T197-197q-54-54-85.500-127T80-480q0-83 31.500-156T197-763q54-54 127-85.500T480-880q83 0 156 31.500T763-763q54 54 85.500 127T880-480q0 83-31.500 156T763-197q-54 54-127 85.500T480-80Zm-40-120h80v-240h-80v240Zm40-320q17 0 28.500-11.500T520-560q0-17-11.500-28.500T480-600q-17 0-28.500 11.500T440-560q0 17 11.500 28.500T480-520Z" />
+        </svg>
+        <span>Tap any result to fine-tune density and choose a background.</span>
+      </div>
+    </section>
+    
+    <section class="drop" id="drop">
+      <div class="art">
+        <svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="M200-120q-33 0-56.500-23.500T120-200v-560q0-33 23.500-56.500T200-840h560q33 0 56.500 23.500T840-760v560q0 33-23.500 56.500T760-120H200Zm0-80h560v-560H200v560Zm40-80h480L570-480 450-320l-90-120-120 160Zm-40 80v-560 560Z" />
+        </svg>
+      </div>
+      <h2>Drop your images</h2>
+      <p>
+        Add one or many photos. Everything is processed locally on your device.
+      </p>
+    </section>
+    
+    <div class="section-head" id="section-head">
+      <h3>Results<span class="count-badge" id="count">0</span></h3>
+    </div>
+    <div id="gallery"></div>
+    
+    <footer class="about">
+      <div class="card">
+        <p>
+          Made with <span class="heart" aria-label="love">❤️‍🔥</span> by <b>BR1JM0H4N</b>
+        </p>
+        <p>
+          Chroma-Key-Studio is open source. Stars, ideas and bug reports are welcome!
+        </p>
+        <a class="btn" href="https://github.com/BR1JM0H4N/Chroma-Key-Studio" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path
+                                                                                                                                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+          </svg>
+          View on GitHub
+        </a>
+      </div>
+    </footer>
+    
+  </main>
+  
+  <nav class="bottom-bar">
+    <input type="file" id="upload" accept="image/*" multiple disabled hidden>
+    <span class="spacer"></span>
+    <button class="tonal-btn state" id="download-all-ui">
+      <svg class="i" viewBox="0 -960 960 960">
+        <path
+                                                                                                                                d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.500-23.500T160-240v-120h80v120h480v-120h80v120q0 33-23.500 56.500T720-160H240Z" />
+      </svg>
+      ZIP
+    </button>
+    <button class="fab-ext state" id="add-btn" disabled>
+      <svg class="i" viewBox="0 -960 960 960">
+        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z" />
+      </svg>
+      Add images
+    </button>
+  </nav>
+  <button id="download-all" hidden></button>
+  
+  <!-- ═════════ Editor ═════════ -->
+  <div class="dialog" id="dialog" role="dialog" aria-modal="true">
+    <div class="dialog-bar">
+      <button class="icon-btn state" id="dlg-close" aria-label="Close"><svg class="i" viewBox="0 -960 960 960">
+          <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
+        </svg></button>
+      <h2 id="dlg-title">Editor</h2>
+      <button class="icon-btn state" id="dlg-delete" aria-label="Delete"><svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="M280-120q-33 0-56.500-23.500T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.500 56.500T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360Z" />
+        </svg></button>
+      <button class="save-btn state" id="dlg-save">
+        <svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.500-23.500T160-240v-120h80v120h480v-120h80v120q0 33-23.500 56.500T720-160H240Z" />
+        </svg>
+        Save
+      </button>
+    </div>
+    
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <canvas id="dlg-canvas"></canvas>
+      </div>
+      <div class="eyedrop-banner">
+        <svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="m120-120 .4-139q0-9 3.600-17t10-14.500l263-263-65-65 56-57 65 65 193-193q23-23 57-23t57 23q23 23 23 57t-23 57L599-440l65 65-57 57-65-65-263 263q-6 6-14.500 9.500T231-111l-111-9Z" />
+        </svg>Touch &amp; drag over the image
+      </div>
+      <div class="xform-banner">
+        <svg class="i" viewBox="0 -960 960 960">
+          <path
+                                                                                                                                  d="m480-80-150-150 57-57 53 53v-193H247l53 53-57 57L93-480l150-150 57 57-53 53h193v-193l-53 53-57-57 150-150 150 150-57 57-53-53v193h193l-53-53 57-57 150 150-150 150-57-57 53-53H533v193l53-53 57 57L480-80Z" />
+        </svg>Drag to move · pinch to resize &amp; rotate
+      </div>
+    </div>
+    
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="seg" id="tabs" role="tablist">
+        <button class="state" role="tab" aria-checked="true" data-v="refine"><span class="chk"><svg class="i"
+                                                                                                                                    viewBox="0 -960 960 960">
+              <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+            </svg></span>Refine</button>
+        <button class="state" role="tab" aria-checked="false" data-v="bg"><span class="chk"><svg class="i"
+                                                                                                                                    viewBox="0 -960 960 960">
+              <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+            </svg></span>Background</button>
+        <button class="state" role="tab" aria-checked="false" data-v="move"><span class="chk"><svg class="i"
+                                                                                                                                    viewBox="0 -960 960 960">
+              <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+            </svg></span>Move/Size</button>
+      </div>
+      
+      <!-- Refine panel -->
+      <div class="panel on" id="panel-refine">
+        <div>
+          <div class="slider-head">
+            <label for="threshold">Density</label>
+            <span class="val" id="thresh-val">0.00</span>
+          </div>
+          <input type="range" class="rng" id="threshold" min="-1" max="1" step="0.05" value="0">
+          <div class="slider-hint">
+            <span>Keep more detail</span><span>Cut more</span>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn-text btn-outlined state" id="d-reset">Reset</button>
+          <button class="btn-text btn-tonal state" id="d-all">Apply to all images</button>
+        </div>
+      </div>
+      
+      <!-- Background panel -->
+      <div class="panel" id="panel-bg">
+        <div class="seg" id="bg-mode">
+          <button class="state" role="radio" aria-checked="true" data-v="none"><span class="chk"><svg class="i"
+                                                                                                                                      viewBox="0 -960 960 960">
+                <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+              </svg></span>None</button>
+          <button class="state" role="radio" aria-checked="false" data-v="solid"><span class="chk"><svg class="i"
+                                                                                                                                      viewBox="0 -960 960 960">
+                <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+              </svg></span>Solid</button>
+          <button class="state" role="radio" aria-checked="false" data-v="gradient"><span class="chk"><svg class="i"
+                                                                                                                                      viewBox="0 -960 960 960">
+                <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+              </svg></span>Gradient</button>
+        </div>
+        
+        <!-- Gradient maker -->
+        <div id="grad-sec" class="hide" style="display:flex;flex-direction:column;gap:12px">
+          <div class="sub-title">
+            Presets
+          </div>
+          <div class="swatches" id="grad-presets"></div>
+          <div class="sub-title">
+            Color stops <span style="text-transform:none;letter-spacing:0;opacity:.8">· tap bar to
+              add, drag to move</span>
+          </div>
+          <div class="gbar-wrap">
+            <div class="gbar" id="gbar"></div>
+          </div>
+          <div class="row wrap">
+            <div class="seg" id="g-type" style="width:170px">
+              <button class="state" role="radio" aria-checked="true" data-v="linear">Linear</button>
+              <button class="state" role="radio" aria-checked="false" data-v="radial">Radial</button>
+            </div>
+            <button class="btn-text btn-outlined state" id="g-swap"><svg class="i" viewBox="0 -960 960 960">
+                <path
+                                                                                                                                        d="M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L624-743l56-57 200 200-200 200Z" />
+              </svg>Reverse</button>
+            <button class="btn-text btn-outlined state" id="g-del"><svg class="i" viewBox="0 -960 960 960">
+                <path
+                                                                                                                                        d="M280-120q-33 0-56.500-23.500T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.500 56.500T680-120H280Zm400-600H280v520h400v-520Z" />
+              </svg>Remove stop</button>
+          </div>
+          <div id="angle-row">
+            <div class="slider-head">
+              <label for="g-angle">Angle</label><span class="val" id="g-angle-val">135°</span>
+            </div>
+            <input type="range" class="rng" id="g-angle" min="0" max="360" step="1" value="135">
+          </div>
+        </div>
+        
+        <!-- Color picker (shared by Solid + Gradient stops) -->
+        <div id="pick-sec" class="hide" style="display:flex;flex-direction:column;gap:6px">
+          <div class="sub-title" id="pick-title">
+            Color
+          </div>
+          <div class="sv" id="sv">
+            <i id="sv-thumb"></i>
+          </div>
+          <input type="range" class="rng hue" id="hue" min="0" max="360" step="1" value="0" aria-label="Hue">
+          <div class="row">
+            <div class="hex-field">
+              <span class="sw" id="hex-sw"></span><span style="opacity:.6">#</span><input id="hex" maxlength="7" autocomplete="off" spellcheck="false"
+                                                                                                                                      inputmode="text">
+            </div>
+            <button class="icon-btn state" id="eyedrop" aria-label="Pick color from image"
+                                                                                                                                    style="background:var(--primaryContainer);color:var(--onPrimaryContainer);border-radius:16px">
+              <svg class="i" viewBox="0 -960 960 960">
+                <path
+                                                                                                                                        d="m120-120 .4-139q0-9 3.600-17t10-14.500l263-263-65-65 56-57 65 65 193-193q23-23 57-23t57 23q23 23 23 57t-23 57L599-440l65 65-57 57-65-65-263 263q-6 6-14.500 9.500T231-111l-111-9Zm126-80 252-252-46-46-252 252 46 46Z" />
+              </svg>
+            </button>
+            <button class="icon-btn state hide" id="eyedrop-screen" aria-label="Pick color from screen"
+                                                                                                                                    style="background:var(--secondaryContainer);color:var(--onSecondaryContainer);border-radius:16px">
+              <svg class="i" viewBox="0 -960 960 960">
+                <path
+                                                                                                                                        d="M160-160q-33 0-56.500-23.500T80-240v-480q0-33 23.500-56.500T160-800h640q33 0 56.500 23.500T880-720v480q0 33-23.500 56.500T800-160H160Zm0-80h640v-480H160v480Zm0 0v-480 480Z" />
+              </svg>
+            </button>
+          </div>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        
+        <div class="row hide" id="bg-all-row">
+          <button class="btn-text btn-tonal state" id="bg-all">Apply background to
+            all</button>
+        </div>
+      </div>
+      
+      <!-- Move / size panel -->
+      <div class="panel" id="panel-move">
+        <div>
+          <div class="slider-head">
+            <label for="tf-size">Size</label><span class="val" id="tf-size-val">100%</span>
+          </div>
+          <input type="range" class="rng" id="tf-size" min="0.1" max="3" step="0.01" value="1">
+        </div>
+        <div>
+          <div class="slider-head">
+            <label for="tf-rot">Rotate</label><span class="val" id="tf-rot-val">0°</span>
+          </div>
+          <input type="range" class="rng" id="tf-rot" min="-180" max="180" step="1" value="0">
+        </div>
+        <div class="row">
+          <button class="btn-text btn-outlined state" id="tf-reset"><svg class="i" viewBox="0 -960 960 960">
+              <path
+                                                                                                                                      d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.500T720-690v-110h80v280H520v-80h168q-32-56-87.500-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z" />
+            </svg>Reset</button>
+          <span style="font-size:12px;color:var(--onSurfaceVariant)">Drag the image to move it</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Eyedropper loupe -->
+  <div class="loupe" id="loupe">
+    <canvas id="loupe-cv" width="11" height="11"></canvas><span id="loupe-hex">#FFFFFF</span>
+  </div>
+  
+  <div class="snackbar" id="snack"></div>
+  
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const upload = $('upload');
+    const status = $('status');
+    const statusSub = $('status-sub');
+    const statusCard = $('status-card');
+    const statusIcon = $('status-icon');
+    const progress = $('progress');
+    const gallery = $('gallery');
+    const downloadAllBtn = $('download-all'); // legacy hidden element
+    const downloadAllUI = $('download-all-ui');
+    const addBtn = $('add-btn');
+    const clearBtn = $('clear-btn');
+    const modeSelect = $('process-mode');
+    const drop = $('drop');
+    const countEl = $('count');
+    const sectionHead = $('section-head');
+
+    let session;
+    let busy = false;
+    // { id, name, img, maskData, canvas, el, wrap, density, bg, src }
+    let resultsStore = [];
+    let uid = 0;
+
+    /* ───────── Icons / status / snack ───────── */
+    const ICONS = {
+      spin: '<svg class="i" viewBox="0 -960 960 960"><path d="M480-80q-82 0-155-31.500t-127.500-86Q143-252 111.500-325T80-480q0-83 31.500-155.500t86-127Q252-817 325-848.500T480-880q17 0 28.500 11.500T520-840q0 17-11.500 28.500T480-800q-133 0-226.500 93.500T160-480q0 133 93.500 226.500T480-160q133 0 226.500-93.500T800-480q0-17 11.500-28.500T840-520q17 0 28.500 11.500T880-480q0 82-31.500 155t-86 127.500q-54.500 54.500-127 86T480-80Z"/></svg>',
+      ok: '<svg class="i" viewBox="0 -960 960 960"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.500T197-197q-54-54-85.500-127T80-480q0-83 31.500-156T197-763q54-54 127-85.500T480-880q83 0 156 31.500T763-763q54 54 85.500 127T880-480q0 83-31.500 156T763-197q-54 54-127 85.500T480-80Z"/></svg>',
+      err: '<svg class="i" viewBox="0 -960 960 960"><path d="M480-280q17 0 28.500-11.500T520-320q0-17-11.500-28.500T480-360q-17 0-28.500 11.500T440-320q0 17 11.500 28.500T480-280Zm-40-160h80v-240h-80v240Zm40 360q-83 0-156-31.500T197-197q-54-54-85.500-127T80-480q0-83 31.500-156T197-763q54-54 127-85.500T480-880q83 0 156 31.500T763-763q54 54 85.500 127T880-480q0 83-31.500 156T763-197q-54 54-127 85.500T480-80Z"/></svg>',
+      dl: '<svg class="i" viewBox="0 -960 960 960"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.500-23.500T160-240v-120h80v120h480v-120h80v120q0 33-23.500 56.500T720-160H240Z"/></svg>'
+    };
+    function setStatus(kind, title, sub, prog) {
+      statusCard.className = 'status-card ' + kind;
+      statusIcon.innerHTML = kind === 'busy' ? ICONS.spin: kind === 'error' ? ICONS.err: ICONS.ok;
+      status.textContent = title;
+      statusSub.textContent = sub || '';
+      progress.className = 'progress' + (prog === 'indet' ? ' indet on': prog != null ? ' on': '');
+      if (typeof prog === 'number') progress.firstElementChild.style.width = (prog * 100) + '%';
+    }
+    let snackT;
+    function snack(msg) {
+      const s = $('snack'); s.textContent = msg; s.classList.add('on');
+      clearTimeout(snackT); snackT = setTimeout(() => s.classList.remove('on'), 2800);
+    }
+
+    /* ───────── Ripple ───────── */
+    document.addEventListener('pointerdown', (e) => {
+      const t = e.target.closest('.state');
+      if (!t || t.disabled) return;
+      const r = t.getBoundingClientRect();
+      const d = Math.max(r.width, r.height) * 2;
+      const s = document.createElement('span');
+      s.className = 'ripple';
+      s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+      t.appendChild(s);
+      setTimeout(() => s.remove(), 600);
+    });
+    addEventListener('scroll', () => $('appbar').classList.toggle('scrolled', scrollY > 4), {
+      passive: true
+    });
+
+    /* ───────── Model init (URLs unchanged) ───────── */
+    async function init() {
+      try {
+        ort.env.wasm.wasmPaths = './';
+        ort.env.wasm.proxy = false;
+        session = await ort.InferenceSession.create('./model_fp16.onnx',
+          {
+            executionProviders: [{
+              name: 'webgpu',
+              deviceType: 'gpu',
+              preferredOutputLocation: 'gpu-buffer'
+            }],
+            graphOptimizationLevel: 'all'
+          });
+        setStatus('ready',
+          'Model ready',
+          'WebGPU enabled · RMBG-1.4',
+          null);
+        upload.disabled = false;
+        addBtn.disabled = false;
+      } catch (e) {
+        setStatus('error',
+          'Initialization failed',
+          e.message,
+          null);
+      }
+    }
+
+    function loadImage(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Could not decode ' + file.name));
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    async function runInference(img) {
+      const mode = modeSelect.value;
+      const std = mode === 'boosted' ? 0.5: 1.0; // Standard = 1.0, Boosted = 0.5
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 1024;
+      tempCanvas.height = 1024;
+      const tCtx = tempCanvas.getContext('2d',
+        {
+          willReadFrequently: true
+        });
+      tCtx.drawImage(img,
+        0,
+        0,
+        1024,
+        1024);
+
+      const imageData = tCtx.getImageData(0,
+        0,
+        1024,
+        1024).data;
+      const N = 1024 * 1024;
+      const floatData = new Float32Array(3 * N);
+      for (let i = 0; i < N; i++) {
+        floatData[i] = (imageData[i * 4] / 255 - 0.5) / std;
+        floatData[i + N] = (imageData[i * 4 + 1] / 255 - 0.5) / std;
+        floatData[i + 2 * N] = (imageData[i * 4 + 2] / 255 - 0.5) / std;
+      }
+
+      const inputTensor = new ort.Tensor('float32', floatData, [1, 3, 1024, 1024]);
+      const results = await session.run({
+        [session.inputNames[0]]: inputTensor
+      });
+      const out = results[session.outputNames[0]];
+      const raw = typeof out.getData === 'function' ? await out.getData(): out.data;
+      const copy = Float32Array.from(raw);
+      if (typeof out.dispose === 'function') out.dispose();
+      return copy;
+    }
+
+    // Shared scratch canvas for masks
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = 1024; maskCanvas.height = 1024;
+    const maskCtx = maskCanvas.getContext('2d');
+    const maskImgData = maskCtx.createImageData(1024, 1024);
+    const mask32 = new Uint32Array(maskImgData.data.buffer);
+
+    function applyMaskToCanvas(originalImg, maskData, targetCanvas, density = 0) {
+      const w = originalImg.naturalWidth || originalImg.width;
+      const h = originalImg.naturalHeight || originalImg.height;
+      if (targetCanvas.width !== w) targetCanvas.width = w;
+      if (targetCanvas.height !== h) targetCanvas.height = h;
+      const ctx = targetCanvas.getContext('2d');
+
+      // Positive density: hard cutoff. Negative: boost faint details.
+      const exponent = density < 0 ? 1 + density * 0.9: 1;
+      for (let i = 0; i < maskData.length; i++) {
+        let val = maskData[i];
+        if (density > 0) {
+          if (val < density) val = 0;
+        } else if (density < 0) {
+          val = Math.pow(Math.abs(val), exponent);
+        }
+        val = val < 0 ? 0: val > 1 ? 1: val;
+        mask32[i] = ((val * 255) | 0) << 24;
+      }
+      maskCtx.putImageData(maskImgData, 0, 0);
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(originalImg, 0, 0, w, h);
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(maskCanvas, 0, 0, 1024, 1024, 0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /* ═════════ Background model ═════════ */
+    const newBg = () => ({
+      mode: 'none',
+      color: '#FFFFFF',
+      grad: {
+        type: 'linear', angle: 135, sel: 0, stops: [{
+          c: '#ACD299', p: 0
+        }, {
+          c: '#7FB4FF', p: 100
+        }]
+      }
+    });
+    const cloneBg = (b) => JSON.parse(JSON.stringify(b));
+    const sortedStops = (g) => g.stops.slice().sort((a, b) => a.p - b.p);
+
+    function gradCSS(g, forceAngle90) {
+      const st = sortedStops(g).map(s => `${s.c} ${s.p.toFixed(1)}%`).join(', ');
+      if (forceAngle90) return `linear-gradient(90deg, ${st})`;
+      return g.type === 'radial' ? `radial-gradient(circle, ${st})`: `linear-gradient(${g.angle}deg, ${st})`;
+    }
+    function bgCSS(bg) {
+      if (bg.mode === 'solid') return bg.color;
+      if (bg.mode === 'gradient') return gradCSS(bg.grad);
+      return '';
+    }
+    function paintBg(ctx, w, h, bg) {
+      if (bg.mode === 'solid') {
+        ctx.fillStyle = bg.color; ctx.fillRect(0, 0, w, h); return;
+      }
+      if (bg.mode !== 'gradient') return;
+      const g = bg.grad,
+      cx = w / 2,
+      cy = h / 2;
+      let grd;
+      if (g.type === 'radial') {
+        grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(w, h) / 2);
+      } else {
+        const a = g.angle * Math.PI / 180,
+        dx = Math.sin(a),
+        dy = -Math.cos(a);
+        const len = Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a));
+        grd = ctx.createLinearGradient(cx - dx * len / 2, cy - dy * len / 2, cx + dx * len / 2, cy + dy * len / 2);
+      }
+      sortedStops(g).forEach(s => grd.addColorStop(Math.min(1, Math.max(0, s.p / 100)), s.c));
+      ctx.fillStyle = grd; ctx.fillRect(0, 0, w, h);
+    }
+    // Compose background + cut-out into any canvas (optionally downscaled)
+    function composeTo(canvas, item, maxDim) {
+      const sw = item.canvas.width,
+      sh = item.canvas.height;
+      const k = maxDim ? Math.min(1, maxDim / Math.max(sw, sh)): 1;
+      const w = Math.max(1, Math.round(sw * k)),
+      h = Math.max(1, Math.round(sh * k));
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      paintBg(ctx, w, h, item.bg);
+      const t = item.tf;
+      if (t && (t.x || t.y || t.s !== 1 || t.r)) {
+        ctx.save();
+        ctx.translate(w / 2 + t.x * w, h / 2 + t.y * h);
+        ctx.rotate(t.r * Math.PI / 180);
+        ctx.scale(t.s, t.s);
+        ctx.drawImage(item.canvas, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      } else ctx.drawImage(item.canvas, 0, 0, w, h);
+      return canvas;
+    }
+    const tfDefault = () => ({
+      x: 0, y: 0, s: 1, r: 0
+    });
+    const needsCompose = (it) => it.bg.mode !== 'none' || it.tf.x || it.tf.y || it.tf.s !== 1 || it.tf.r;
+    function updateThumbTf(item) {
+      const t = item.tf;
+      item.canvas.style.transform = needsCompose(item) && (t.x || t.y || t.s !== 1 || t.r)
+      ? `translate(${t.x * 100}%, ${t.y * 100}%) rotate(${t.r}deg) scale(${t.s})`: '';
+    }
+    function updateThumbBg(item) {
+      if (item.wrap) item.wrap.style.background = bgCSS(item.bg);
+    }
+
+    /* ───────── Segmented button ↔ hidden select ───────── */
+    $('seg').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      modeSelect.value = b.dataset.v;
+      $('seg').querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', x === b));
+    });
+    function segBind(id, fn) {
+      $(id).addEventListener('click',
+        (e) => {
+          const b = e.target.closest('button'); if (!b) return;
+          segSet(id, b.dataset.v); fn(b.dataset.v);
+        });
+    }
+    function segSet(id, v) {
+      $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', x.dataset.v === v));
+    }
+
+    /* ───────── Files in ───────── */
+    addBtn.onclick = () => {
+      if (!busy && !upload.disabled) upload.click();
+    };
+    drop.onclick = addBtn.onclick;
+    ['dragenter', 'dragover'].forEach(ev => addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.add('over');
+    }));
+    ['dragleave', 'drop'].forEach(ev => addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.remove('over');
+    }));
+    addEventListener('drop', (e) => {
+      if (busy || !session) return;
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length) processFiles(files);
+    });
+
+    function refreshChrome() {
+      const n = resultsStore.length;
+      countEl.textContent = n;
+      sectionHead.classList.toggle('on',
+        n > 0);
+      drop.classList.toggle('hidden',
+        n > 0 || busy);
+      clearBtn.disabled = n === 0 || busy;
+      downloadAllUI.classList.toggle('on',
+        n > 0 && !busy);
+    }
+
+    upload.onchange = (e) => {
+      const files = Array.from(e.target.files);
+      upload.value = '';
+      if (files.length) processFiles(files);
+    };
+
+    async function processFiles(files) {
+      busy = true;
+      upload.disabled = true; addBtn.disabled = true;
+      clearResults(true);
+      refreshChrome();
+
+      const startTimeTotal = performance.now();
+      let done = 0,
+      failed = 0;
+      setStatus('busy', `Processing 1 of ${files.length}`, 'Removing backgrounds…', 0);
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setStatus('busy', `Processing ${i + 1} of ${files.length}`, file.name, i / files.length);
+
+        const el = document.createElement('div');
+        el.className = 'result-item';
+        el.innerHTML = '<div class="skeleton"><div class="cpi"></div></div>';
+        gallery.appendChild(el);
+        el.scrollIntoView({
+          block: 'nearest', behavior: 'smooth'
+        });
+
+        try {
+          const startTimeItem = performance.now();
+          const img = await loadImage(file);
+          await new Promise(res => setTimeout(res, 20));
+
+          const maskData = await runInference(img);
+          const canvas = document.createElement('canvas');
+          applyMaskToCanvas(img, maskData, canvas, 0);
+          const secs = ((performance.now() - startTimeItem) / 1000).toFixed(2);
+
+          const item = {
+            id: ++uid,
+            name: `no-bg-${file.name.replace(/\.[^.]+$/, '')}.png`,
+            canvas,
+            img,
+            maskData,
+            el,
+            density: 0,
+            bg: newBg(),
+            tf: tfDefault(),
+            src: null,
+            wrap: null
+          };
+          resultsStore.push(item);
+
+          el.innerHTML = '';
+          const wrap = document.createElement('div');
+          wrap.className = 'thumb-wrap';
+          wrap.appendChild(canvas);
+          item.wrap = wrap;
+          el.appendChild(wrap);
+          el.insertAdjacentHTML('beforeend',
+            `<div class="time-badge">${secs}s</div><button class="mini-fab state" aria-label="Save">${ICONS.dl}</button>`);
+          el.querySelector('.mini-fab').onclick = (ev) => {
+            ev.stopPropagation(); saveItem(item);
+          };
+          el.onclick = () => openEditor(item);
+          done++;
+        } catch (err) {
+          console.error(err);
+          failed++;
+          el.remove();
+        }
+        refreshChrome();
+      }
+
+      const total = ((performance.now() - startTimeTotal) / 1000).toFixed(2);
+      busy = false;
+      upload.disabled = false; addBtn.disabled = false;
+      setStatus('ready',
+        failed ? `Finished ${done} of ${files.length}`: `Finished ${done} image${done === 1 ? '': 's'}`,
+        `${total}s total${failed ? ` · ${failed} failed`: ''}`, null);
+      refreshChrome();
+      snack(failed ? `${failed} image(s) could not be processed`: 'All done — tap an image to edit');
+    }
+
+    function clearResults(silent) {
+      resultsStore.forEach(it => {
+        if (it.img && it.img.src.startsWith('blob:')) URL.revokeObjectURL(it.img.src);
+      });
+      resultsStore = [];
+      gallery.innerHTML = '';
+      if (!silent) refreshChrome();
+    }
+    clearBtn.onclick = () => {
+      clearResults();
+      setStatus('ready', 'Model ready', 'WebGPU enabled · RMBG-1.4', null);
+      snack('Cleared');
+    };
+
+    /* ───────── Downloads ───────── */
+    function saveBlob(blob, name) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+    const toBlob = (c) => new Promise(r => c.toBlob(r, 'image/png'));
+    async function saveItem(item) {
+      const out = needsCompose(item) ? composeTo(document.createElement('canvas'), item): item.canvas;
+      saveBlob(await toBlob(out), item.name);
+      snack('Saved ' + item.name);
+    }
+    async function downloadZip() {
+      if (!resultsStore.length) return;
+      const zip = new JSZip();
+      setStatus('busy', 'Zipping files…', `${resultsStore.length} images`, 'indet');
+      const names = new Set();
+      for (const item of resultsStore) {
+        const out = needsCompose(item) ? composeTo(document.createElement('canvas'), item): item.canvas;
+        const blob = await toBlob(out);
+        let n = item.name,
+        k = 1;
+        while (names.has(n)) n = item.name.replace(/\.png$/, `-${k++}.png`);
+        names.add(n);
+        zip.file(n, blob);
+      }
+      const content = await zip.generateAsync({
+        type: 'blob'
+      });
+      saveBlob(content, 'processed_images.zip');
+      setStatus('ready', 'Download complete', 'processed_images.zip', null);
+      snack('ZIP saved');
+    }
+    downloadAllUI.onclick = downloadZip;
+    downloadAllBtn.onclick = downloadZip;
+
+    /* ═════════════════════════ EDITOR ═════════════════════════ */
+    const dlg = $('dialog'), dlgCanvas = $('dlg-canvas'), stage = $('stage');
+    let cur = null; // item being edited
+
+    /* ----- colour maths ----- */
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    function hsv2rgb(h, s, v) {
+      const f = (n) => {
+        const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+      };
+      return [f(5),
+        f(3),
+        f(1)].map(x => Math.round(x * 255));
+    }
+    const rgb2hex = (r, g, b) => '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+    function hex2rgb(hex) {
+      let h = hex.replace('#', '');
+      if (h.length === 3) h = h.split('').map(c => c + c).join('');
+      const n = parseInt(h, 16);
+      return [(n >> 16) & 255,
+        (n >> 8) & 255,
+        n & 255];
+    }
+    function rgb2hsv(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const mx = Math.max(r, g, b),
+      mn = Math.min(r, g, b),
+      d = mx - mn;
+      let h = 0;
+      if (d) {
+        if (mx === r) h = ((g - b) / d) % 6;
+        else if (mx === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h *= 60; if (h < 0) h += 360;
+      }
+      return [h,
+        mx ? d / mx: 0,
+        mx];
+    }
+    const validHex = (s) => /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
+
+    /* ----- picker ----- */
+    const pk = {
+      h: 0,
+      s: 0,
+      v: 1
+    };
+    const svEl = $('sv'), svThumb = $('sv-thumb'), hueEl = $('hue'), hexEl = $('hex');
+    function pkHex() {
+      return rgb2hex(...hsv2rgb(pk.h, pk.s, pk.v));
+    }
+    function renderPicker(skipHexInput) {
+      const hex = pkHex();
+      svEl.style.background = rgb2hex(...hsv2rgb(pk.h, 1, 1));
+      svThumb.style.left = (pk.s * 100) + '%';
+      svThumb.style.top = ((1 - pk.v) * 100) + '%';
+      svThumb.style.background = hex;
+      hueEl.value = pk.h;
+      $('hex-sw').style.background = hex;
+      if (!skipHexInput) hexEl.value = hex.slice(1);
+    }
+    function setPickerHex(hex) {
+      const [r,
+        g,
+        b] = hex2rgb(hex);
+      const [h,
+        s,
+        v] = rgb2hsv(r, g, b);
+      pk.h = s === 0 ? pk.h: h; pk.s = s; pk.v = v;
+      renderPicker();
+    }
+    function pickerChanged(skipHexInput) {
+      renderPicker(skipHexInput); onColor(pkHex());
+    }
+
+    function svMove(e) {
+      const r = svEl.getBoundingClientRect();
+      pk.s = clamp((e.clientX - r.left) / r.width, 0, 1);
+      pk.v = 1 - clamp((e.clientY - r.top) / r.height, 0, 1);
+      pickerChanged();
+    }
+    svEl.addEventListener('pointerdown', (e) => {
+      svEl.setPointerCapture(e.pointerId); svMove(e);
+    });
+    svEl.addEventListener('pointermove', (e) => {
+      if (svEl.hasPointerCapture(e.pointerId)) svMove(e);
+    });
+    hueEl.addEventListener('input', () => {
+      pk.h = +hueEl.value; if (pk.s === 0) pk.s = .01; pickerChanged();
+    });
+    hexEl.addEventListener('input', () => {
+      const v = hexEl.value.replace('#', '');
+      if (validHex(v)) {
+        const [r,
+          g,
+          b] = hex2rgb(v);
+        const [h,
+          s,
+          vv] = rgb2hsv(r, g, b);
+        pk.h = s === 0 ? pk.h: h; pk.s = s; pk.v = vv;
+        pickerChanged(true);
+      }
+    });
+
+    /* ----- sliders: M3 fill ----- */
+    function bindRange(el, min, max) {
+      const f = () => el.style.setProperty('--p',
+        ((+el.value - min) / (max - min)) * 100);
+      el.addEventListener('input',
+        f); f();
+      return f;
+    }
+    const fillDensity = bindRange($('threshold'), -1, 1);
+    const fillAngle = bindRange($('g-angle'), 0, 360);
+
+    /* ----- Editor render (throttled) ----- */
+    let rafPrev = 0;
+    function drawPreview() {
+      if (!cur) return;
+      composeTo(dlgCanvas, cur, 1600);
+    }
+    function schedulePreview() {
+      if (rafPrev) return;
+      rafPrev = requestAnimationFrame(() => {
+        rafPrev = 0; drawPreview();
+      });
+    }
+
+    /* ----- Density ----- */
+    let rafDen = 0;
+    function showDensity() {
+      const v = cur.density;
+      $('threshold').value = v; fillDensity();
+      $('thresh-val').textContent = (v > 0 ? '+': '') + v.toFixed(2);
+    }
+    $('threshold').addEventListener('input', () => {
+      if (!cur) return;
+      cur.density = parseFloat($('threshold').value);
+      $('thresh-val').textContent = (cur.density > 0 ? '+': '') + cur.density.toFixed(2);
+      if (rafDen) return;
+      rafDen = requestAnimationFrame(() => {
+        rafDen = 0;
+        applyMaskToCanvas(cur.img, cur.maskData, cur.canvas, cur.density);
+        drawPreview();
+      });
+    });
+    $('d-reset').onclick = () => {
+      cur.density = 0; showDensity();
+      applyMaskToCanvas(cur.img,
+        cur.maskData,
+        cur.canvas,
+        0); drawPreview();
+    };
+    $('d-all').onclick = () => {
+      const d = cur.density;
+      resultsStore.forEach(it => {
+        it.density = d; applyMaskToCanvas(it.img, it.maskData, it.canvas, d);
+      });
+      snack(`Density ${d.toFixed(2)} applied to ${resultsStore.length} image${resultsStore.length === 1 ? '': 's'}`);
+    };
+
+    /* ----- Tabs ----- */
+    segBind('tabs', (v) => {
+      $('panel-refine').classList.toggle('on', v === 'refine');
+      $('panel-bg').classList.toggle('on', v === 'bg');
+      $('panel-move').classList.toggle('on', v === 'move');
+      stage.classList.toggle('xform', v === 'move');
+      if (v !== 'bg') stopEye();
+    });
+
+    /* ----- Background UI ----- */
+    const SOLIDS = ['#FFFFFF', '#000000', '#ACD299', '#CFCB7E', '#7FB4FF', '#F2B8B5', '#BCCBB1', '#E2E3DA', '#2F4F22', '#FFB74D', '#BA68C8', '#4DD0E1', '#FF6F61'];
+    const GRADS = [
+      ['#ACD299', '#2F4F22'], ['#FF9A8B', '#FF6A88', '#FF99AC'], ['#7FB4FF', '#BA68C8'], ['#FDC830', '#F37335'],
+      ['#43CEA2', '#185A9D'], ['#0F2027', '#2C5364'], ['#FFFFFF', '#CFD8DC'], ['#F9F4AE', '#CFCB7E'], ['#232526', '#414345'], ['#FF0844', '#FFB199']
+    ];
+    $('swatches').innerHTML = SOLIDS.map(c => `<button class="swatch state" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
+    $('swatches').addEventListener('click', (e) => {
+      const b = e.target.closest('.swatch'); if (!b) return;
+      setPickerHex(b.dataset.c); onColor(b.dataset.c);
+    });
+    const presetObj = (cols) => ({
+      type: 'linear',
+      angle: 135,
+      sel: 0,
+      stops: cols.map((c, i) => ({
+        c, p: cols.length === 1 ? 0: (i / (cols.length - 1)) * 100
+      }))
+    });
+    $('grad-presets').innerHTML = GRADS.map((g, i) =>
+      `<button class="swatch rect state" data-i="${i}" style="background:${gradCSS(presetObj(g))}" aria-label="Gradient ${i + 1}"></button>`).join('');
+    $('grad-presets').addEventListener('click', (e) => {
+      const b = e.target.closest('.swatch'); if (!b) return;
+      cur.bg.mode = 'gradient';
+      const keepType = cur.bg.grad.type,
+      keepAngle = cur.bg.grad.angle;
+      cur.bg.grad = presetObj(GRADS[+b.dataset.i]);
+      cur.bg.grad.type = keepType; cur.bg.grad.angle = keepAngle;
+      syncBgUI(true);
+    });
+
+    segBind('bg-mode', (v) => {
+      cur.bg.mode = v; syncBgUI(true);
+    });
+    segBind('g-type', (v) => {
+      cur.bg.grad.type = v; syncBgUI(false);
+    });
+    $('g-angle').addEventListener('input', () => {
+      cur.bg.grad.angle = +$('g-angle').value; fillAngle();
+      $('g-angle-val').textContent = cur.bg.grad.angle + '°';
+      renderBgVisuals();
+    });
+    $('g-swap').onclick = () => {
+      const g = cur.bg.grad; g.stops.forEach(s => s.p = 100 - s.p);
+      syncBgUI(false);
+    };
+    $('g-del').onclick = () => {
+      const g = cur.bg.grad;
+      if (g.stops.length <= 2) {
+        snack('A gradient needs at least 2 stops'); return;
+      }
+      g.stops.splice(g.sel, 1); g.sel = Math.max(0, g.sel - 1);
+      syncBgUI(true);
+    };
+    $('bg-all').onclick = () => {
+      resultsStore.forEach(it => {
+        it.bg = cloneBg(cur.bg); updateThumbBg(it);
+      });
+      snack('Background applied to all images');
+    };
+
+    // Called by the picker / swatches / eyedropper
+    function onColor(hex) {
+      if (!cur) return;
+      if (cur.bg.mode === 'solid') cur.bg.color = hex;
+      else if (cur.bg.mode === 'gradient') cur.bg.grad.stops[cur.bg.grad.sel].c = hex;
+      else {
+        cur.bg.mode = 'solid'; cur.bg.color = hex; syncBgUI(false); return;
+      }
+      renderBgVisuals();
+    }
+
+    // Visual refresh that doesn't touch the picker
+    function renderBgVisuals() {
+      const g = cur.bg.grad;
+      const bar = $('gbar');
+      bar.style.background = gradCSS(g, true);
+      bar.innerHTML = '';
+      g.stops.forEach((s, i) => {
+        const m = document.createElement('div');
+        m.className = 'gstop';
+        m.style.left = s.p + '%';
+        m.style.background = s.c;
+        m.setAttribute('aria-checked', i === g.sel);
+        m.dataset.i = i;
+        bar.appendChild(m);
+      });
+      $('swatches').querySelectorAll('.swatch').forEach(b => {
+        const c = cur.bg.mode === 'solid' ? cur.bg.color: g.stops[g.sel].c;
+        b.setAttribute('aria-checked', b.dataset.c.toLowerCase() === c.toLowerCase());
+      });
+      updateThumbBg(cur);
+      schedulePreview();
+    }
+    // Full sync: UI state ← model
+    function syncBgUI(reloadPicker) {
+      const b = cur.bg,
+      g = b.grad;
+      segSet('bg-mode', b.mode);
+      segSet('g-type', g.type);
+      $('grad-sec').classList.toggle('hide', b.mode !== 'gradient');
+      $('pick-sec').classList.toggle('hide', b.mode === 'none');
+      $('bg-all-row').classList.toggle('hide', b.mode === 'none');
+      $('angle-row').classList.toggle('hide', g.type === 'radial');
+      $('g-angle').value = g.angle; fillAngle(); $('g-angle-val').textContent = g.angle + '°';
+      $('pick-title').textContent = b.mode === 'gradient' ? `Stop ${g.sel + 1} color`: 'Color';
+      if (reloadPicker && b.mode !== 'none') setPickerHex(b.mode === 'solid' ? b.color: g.stops[g.sel].c);
+      renderBgVisuals();
+    }
+
+    // Gradient bar: tap = add stop, drag marker = move / select
+    const gbar = $('gbar');
+    let dragStop = -1, dragMoved = false;
+    gbar.addEventListener('pointerdown', (e) => {
+      const g = cur.bg.grad;
+      const m = e.target.closest('.gstop');
+      gbar.setPointerCapture(e.pointerId);
+      dragMoved = false;
+      if (m) {
+        dragStop = +m.dataset.i;
+        g.sel = dragStop; syncBgUI(true);
+      } else {
+        const r = gbar.getBoundingClientRect();
+        const p = clamp((e.clientX - r.left) / r.width * 100, 0, 100);
+        g.stops.push({
+          c: colorAt(g, p), p
+        }); g.sel = g.stops.length - 1; dragStop = g.sel;
+        syncBgUI(true);
+      }
+    });
+    gbar.addEventListener('pointermove', (e) => {
+      if (dragStop < 0 || !gbar.hasPointerCapture(e.pointerId)) return;
+      const r = gbar.getBoundingClientRect();
+      cur.bg.grad.stops[dragStop].p = clamp((e.clientX - r.left) / r.width * 100, 0, 100);
+      renderBgVisuals();
+    });
+    const endDrag = () => {
+      dragStop = -1;
+    };
+    gbar.addEventListener('pointerup', endDrag);
+    gbar.addEventListener('pointercancel', endDrag);
+    function colorAt(g, p) {
+      const s = sortedStops(g);
+      if (p <= s[0].p) return s[0].c;
+      if (p >= s[s.length - 1].p) return s[s.length - 1].c;
+      for (let i = 0; i < s.length - 1; i++) {
+        if (p >= s[i].p && p <= s[i + 1].p) {
+          const t = (p - s[i].p) / ((s[i + 1].p - s[i].p) || 1);
+          const a = hex2rgb(s[i].c),
+          b = hex2rgb(s[i + 1].c);
+          return rgb2hex(...a.map((v, k) => Math.round(v + (b[k] - v) * t)));
+        }
+      }
+      return s[0].c;
+    }
+
+    /* ═════════ Eyedropper (from the image itself) ═════════ */
+    let eyeOn = false, eyeColor = null;
+    const loupe = $('loupe'), loupeCv = $('loupe-cv'), loupeCtx = loupeCv.getContext('2d');
+    loupeCtx.imageSmoothingEnabled = false;
+
+    function ensureSrc(item) {
+      if (!item.src) {
+        const c = document.createElement('canvas');
+        c.width = item.img.naturalWidth || item.img.width;
+        c.height = item.img.naturalHeight || item.img.height;
+        const x = c.getContext('2d', {
+          willReadFrequently: true
+        });
+        x.drawImage(item.img, 0, 0);
+        item.src = {
+          c,
+          x
+        };
+      }
+      return item.src;
+    }
+    function sampleAt(e) {
+      const r = dlgCanvas.getBoundingClientRect();
+      const {
+        c,
+        x
+      } = ensureSrc(cur);
+      const px = clamp(Math.floor((e.clientX - r.left) / r.width * c.width), 0, c.width - 1);
+      const py = clamp(Math.floor((e.clientY - r.top) / r.height * c.height), 0, c.height - 1);
+      const d = x.getImageData(px, py, 1, 1).data;
+      eyeColor = rgb2hex(d[0], d[1], d[2]);
+      // magnified neighbourhood (11×11 px)
+      loupeCtx.clearRect(0, 0, 11, 11);
+      loupeCtx.drawImage(c, px - 5, py - 5, 11, 11, 0, 0, 11, 11);
+      loupeCtx.strokeStyle = '#fff'; loupeCtx.lineWidth = 1;
+      loupeCtx.strokeRect(5.5, 5.5, 1, 1);
+      loupe.style.left = e.clientX + 'px';
+      loupe.style.top = e.clientY + 'px';
+      $('loupe-hex').textContent = eyeColor;
+      // live preview into the picker/background
+      setPickerHex(eyeColor); onColor(eyeColor);
+    }
+    function startEye() {
+      if (!cur) return;
+      if (cur.bg.mode === 'none') {
+        cur.bg.mode = 'solid'; syncBgUI(true);
+      }
+      eyeOn = true; stage.classList.add('eyedrop');
+    }
+    function stopEye() {
+      eyeOn = false; stage.classList.remove('eyedrop'); loupe.classList.remove('on');
+    }
+    $('eyedrop').onclick = () => (eyeOn ? stopEye(): startEye());
+    stage.addEventListener('pointerdown', (e) => {
+      if (!eyeOn) return;
+      e.preventDefault(); stage.setPointerCapture(e.pointerId);
+      loupe.classList.add('on'); sampleAt(e);
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (eyeOn && stage.hasPointerCapture(e.pointerId)) sampleAt(e);
+    });
+    stage.addEventListener('pointerup', (e) => {
+      if (!eyeOn || !stage.hasPointerCapture(e.pointerId)) return;
+      stopEye(); snack('Picked ' + eyeColor);
+    });
+    stage.addEventListener('pointercancel', stopEye);
+
+    // Native screen eyedropper where the browser supports it
+    if ('EyeDropper' in window) {
+      $('eyedrop-screen').classList.remove('hide');
+      $('eyedrop-screen').onclick = async () => {
+        try {
+          if (cur.bg.mode === 'none') {
+            cur.bg.mode = 'solid'; syncBgUI(true);
+          }
+          const r = await new EyeDropper().open();
+          const hex = r.sRGBHex.toUpperCase();
+          setPickerHex(hex); onColor(hex);
+        } catch (_) {
+          /* cancelled */
+        }
+      };
+    }
+
+    /* ═════════ Move / size (sticker mode) ═════════ */
+    const fillSize = bindRange($('tf-size'), 0.1, 3);
+    const fillRot = bindRange($('tf-rot'), -180, 180);
+    function showTf() {
+      const t = cur.tf;
+      $('tf-size').value = t.s; fillSize(); $('tf-size-val').textContent = Math.round(t.s * 100) + '%';
+      $('tf-rot').value = t.r; fillRot(); $('tf-rot-val').textContent = Math.round(t.r) + '°';
+    }
+    function tfChanged() {
+      showTf(); updateThumbTf(cur); schedulePreview();
+    }
+    $('tf-size').addEventListener('input', () => {
+      cur.tf.s = +$('tf-size').value; tfChanged();
+    });
+    $('tf-rot').addEventListener('input', () => {
+      cur.tf.r = +$('tf-rot').value; tfChanged();
+    });
+    $('tf-reset').onclick = () => {
+      cur.tf = tfDefault(); tfChanged(); snack('Position reset');
+    };
+
+    const ptrs = new Map();
+    let base = null;
+    const normRot = (r) => ((r + 540) % 360) - 180;
+    function snapshot() {
+      const p = [...ptrs.values()];
+      if (!p.length) {
+        base = null; return;
+      }
+      const cx = p.reduce((a, q) => a + q.x, 0) / p.length,
+      cy = p.reduce((a, q) => a + q.y, 0) / p.length;
+      base = {
+        cx,
+        cy,
+        tf: {
+          ...cur.tf
+        },
+        n: p.length
+      };
+      if (p.length >= 2) {
+        base.d = Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) || 1;
+        base.a = Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x);
+      }
+    }
+    stage.addEventListener('pointerdown', (e) => {
+      if (eyeOn || !stage.classList.contains('xform')) return;
+      e.preventDefault(); stage.setPointerCapture(e.pointerId);
+      ptrs.set(e.pointerId, {
+        x: e.clientX, y: e.clientY
+      });
+      stage.style.cursor = 'grabbing'; snapshot();
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!ptrs.has(e.pointerId) || !base) return;
+      ptrs.set(e.pointerId, {
+        x: e.clientX, y: e.clientY
+      });
+      const p = [...ptrs.values()],
+      r = dlgCanvas.getBoundingClientRect();
+      const cx = p.reduce((a, q) => a + q.x, 0) / p.length,
+      cy = p.reduce((a, q) => a + q.y, 0) / p.length;
+      const t = cur.tf;
+      t.x = clamp(base.tf.x + (cx - base.cx) / r.width, -1.5, 1.5);
+      t.y = clamp(base.tf.y + (cy - base.cy) / r.height, -1.5, 1.5);
+      if (p.length >= 2 && base.d) {
+        const d = Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y);
+        const a = Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x);
+        t.s = clamp(base.tf.s * d / base.d, 0.1, 3);
+        t.r = normRot(base.tf.r + (a - base.a) * 180 / Math.PI);
+      }
+      tfChanged();
+    });
+    const tfUp = (e) => {
+      ptrs.delete(e.pointerId); snapshot();
+      if (!ptrs.size) stage.style.cursor = '';
+    };
+    stage.addEventListener('pointerup', tfUp);
+    stage.addEventListener('pointercancel', tfUp);
+    stage.addEventListener('wheel', (e) => {
+      if (!stage.classList.contains('xform') || !cur) return;
+      e.preventDefault();
+      cur.tf.s = clamp(cur.tf.s * Math.exp(-e.deltaY * 0.0015), 0.1, 3);
+      tfChanged();
+    }, {
+      passive: false
+    });
+
+    /* ═════════ Open / close editor ═════════ */
+    function openEditor(item) {
+      cur = item;
+      $('dlg-title').textContent = item.name;
+      segSet('tabs',
+        'refine');
+      $('panel-refine').classList.add('on'); $('panel-bg').classList.remove('on'); $('panel-move').classList.remove('on');
+      stage.classList.remove('xform'); ptrs.clear();
+      showTf();
+      showDensity();
+      syncBgUI(true);
+      drawPreview();
+      dlg.classList.add('on');
+      history.pushState({
+        dlg: 1
+      },
+        '');
+    }
+    function closeEditor(fromPop) {
+      if (!dlg.classList.contains('on')) return;
+      stopEye();
+      dlg.classList.remove('on');
+      cur = null;
+      if (!fromPop && history.state && history.state.dlg) history.back();
+    }
+    $('dlg-close').onclick = () => closeEditor();
+    addEventListener('popstate', () => closeEditor(true));
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        eyeOn ? stopEye(): closeEditor();
+      }
+    });
+    $('dlg-save').onclick = () => cur && saveItem(cur);
+    $('dlg-delete').onclick = () => {
+      if (!cur) return;
+      const it = cur;
+      closeEditor();
+      resultsStore = resultsStore.filter(x => x !== it);
+      it.el.remove();
+      refreshChrome();
+      snack('Image removed');
+    };
+
+    refreshChrome();
+    setStatus('busy', 'Initializing WebGPU Model...', 'RMBG-1.4 · running on-device', 'indet');
+    init();
+  </script>
+</body>
+
+</html>
