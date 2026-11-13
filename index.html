@@ -1,9 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>
-  eruda.init();
-</script>
 
 <head>
   <meta charset="UTF-8">
@@ -13,7 +9,10 @@
   <script src="./ort.webgpu.min.js"></script>
   <script src="./jszip.min.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600;8..144,700&display=swap');
+    @font-face {
+      font-family: "nunito";
+      src: url(./Nunito.ttf);
+    }
     
     :root {
       
@@ -89,7 +88,7 @@
       --ease-emph: cubic-bezier(.2, 0, 0, 1);
       --ease-emph-dec: cubic-bezier(.05, .7, .1, 1);
       --bar-h: 80px;
-      --font: 'Roboto Flex', 'Google Sans', Roboto, system-ui, sans-serif;
+      --font: 'nunito', 'Google Sans', Roboto, system-ui, sans-serif;
       --checker: repeating-conic-gradient(var(--surfaceContainerHighest) 0% 25%, var(--surfaceContainerLow) 0% 50%) 0 0 / 16px 16px;
     }
     
@@ -773,7 +772,7 @@
       background: var(--surfaceContainer);
       display: flex;
       align-items: center;
-      padding: 10px 16px calc(var(--safe-area-inset-bottom, 0px)) 12px;
+      padding: 10px 16px calc(var(--safe-area-inset-bottom, 10px)) 12px;
       gap: 8px;
     }
     
