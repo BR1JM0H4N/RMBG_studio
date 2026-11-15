@@ -950,6 +950,68 @@
       outline-offset: -3px;
     }
     
+    /* Before/After compare */
+    .icon-btn.on { background: var(--primaryContainer); color: var(--onPrimaryContainer); }
+    .cmp {
+      position: absolute;
+      display: none;
+      z-index: 4;
+      overflow: hidden;
+      border-radius: 6px;
+      touch-action: none;
+      cursor: ew-resize;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .cmp.on { display: block; }
+    .cmp canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+      max-width: none;
+      max-height: none;
+    }
+    .cmp-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      margin-left: -1px;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+      pointer-events: none;
+    }
+    .cmp-knob {
+      position: absolute;
+      top: 50%;
+      width: 40px;
+      height: 40px;
+      margin: -20px 0 0 -20px;
+      border-radius: 50%;
+      background: #fff;
+      color: #222;
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    .cmp-knob svg { width: 24px; height: 24px; fill: currentColor; }
+    .cmp-tag {
+      position: absolute;
+      top: 8px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .cmp-tag.b { left: 8px; }
+    .cmp-tag.a { right: 8px; }
+
     .eyedrop-banner {
       position: absolute;
       left: 50%;
@@ -1540,6 +1602,9 @@
           <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
         </svg></button>
       <h2 id="dlg-title">Editor</h2>
+      <button class="icon-btn state" id="dlg-compare" aria-label="Compare before and after" aria-pressed="false"><svg class="i" viewBox="0 -960 960 960">
+          <path d="M120-200v-560h280v80H200v400h200v80H120Zm720 0H560v-80h200v-400H560v-80h280v560ZM440-80v-800h80v800h-80Z" />
+        </svg></button>
       <button class="icon-btn state" id="dlg-delete" aria-label="Delete"><svg class="i" viewBox="0 -960 960 960">
           <path
                                                                                                                                   d="M280-120q-33 0-56.500-23.500T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.500 56.500T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360Z" />
@@ -1556,6 +1621,12 @@
     <div class="stage-wrap">
       <div class="stage" id="stage">
         <canvas id="dlg-canvas"></canvas>
+        <div class="cmp" id="cmp">
+          <canvas id="cmp-before"></canvas>
+          <span class="cmp-tag b">Before</span><span class="cmp-tag a">After</span>
+          <div class="cmp-line" id="cmp-line"></div>
+          <div class="cmp-knob" id="cmp-knob"><svg viewBox="0 -960 960 960"><path d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"/></svg></div>
+        </div>
       </div>
       <div class="eyedrop-banner">
         <svg class="i" viewBox="0 -960 960 960">
@@ -2697,9 +2768,60 @@
       passive: false
     });
 
+    /* ═════════ Before / After compare ═════════ */
+    const cmp = $('cmp'), cmpBtn = $('dlg-compare'), cmpBefore = $('cmp-before');
+    let cmpPos = 0.5;
+    function cmpLayout() {
+      if (!cmp.classList.contains('on')) return;
+      const s = stage.getBoundingClientRect(), c = dlgCanvas.getBoundingClientRect();
+      cmp.style.left = (c.left - s.left) + 'px';
+      cmp.style.top = (c.top - s.top) + 'px';
+      cmp.style.width = c.width + 'px';
+      cmp.style.height = c.height + 'px';
+      cmpSetPos(cmpPos);
+    }
+    function cmpSetPos(p) {
+      cmpPos = clamp(p, 0, 1);
+      const pct = cmpPos * 100;
+      cmpBefore.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      $('cmp-line').style.left = pct + '%';
+      $('cmp-knob').style.left = pct + '%';
+    }
+    function cmpDrawBefore() {
+      if (!cur) return;
+      const img = cur.img, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      const k = Math.min(1, 1600 / Math.max(w, h));
+      cmpBefore.width = Math.round(w * k); cmpBefore.height = Math.round(h * k);
+      cmpBefore.getContext('2d').drawImage(img, 0, 0, cmpBefore.width, cmpBefore.height);
+    }
+    function cmpToggle(on) {
+      if (on && !cur) return;
+      if (on) { stopEye(); stage.classList.remove('xform'); cmpDrawBefore(); }
+      cmp.classList.toggle('on', on);
+      cmpBtn.classList.toggle('on', on);
+      cmpBtn.setAttribute('aria-pressed', on);
+      if (on) { cmpPos = 0.5; cmpLayout(); }
+    }
+    cmpBtn.onclick = () => cmpToggle(!cmp.classList.contains('on'));
+    const cmpMove = (e) => {
+      const r = cmp.getBoundingClientRect();
+      cmpSetPos((e.clientX - r.left) / r.width);
+    };
+    cmp.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      cmp.setPointerCapture(e.pointerId);
+      cmpMove(e);
+    });
+    cmp.addEventListener('pointermove', (e) => {
+      if (cmp.hasPointerCapture(e.pointerId)) cmpMove(e);
+    });
+    new ResizeObserver(cmpLayout).observe(stage);
+    new ResizeObserver(cmpLayout).observe(dlgCanvas);
+
     /* ═════════ Open / close editor ═════════ */
     function openEditor(item) {
       cur = item;
+      cmpToggle(false);
       $('dlg-title').textContent = item.name;
       segSet('tabs',
         'refine');
@@ -2718,6 +2840,7 @@
     function closeEditor(fromPop) {
       if (!dlg.classList.contains('on')) return;
       stopEye();
+      cmpToggle(false);
       dlg.classList.remove('on');
       cur = null;
       if (!fromPop && history.state && history.state.dlg) history.back();
